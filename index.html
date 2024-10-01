@@ -95,7 +95,9 @@
         }
 
         let percent = percentGleanOnly.at(-1) + percentGleanWithMirror.at(-1);
-        document.getElementById("percent").textContent = percent < 100 ? `No, ${percent.toFixed(1)}% Glean` : "Yes!";
+        let percentText = percent < 100 ? `No, ${percent.toFixed(1)}% Glean` : "Yes!";
+        document.getElementById("percent").textContent = percentText;
+        document.title += " " + percentText;
 
         // Create the chart
         const footer = (tooltipItems) => {
