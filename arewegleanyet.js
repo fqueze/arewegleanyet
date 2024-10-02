@@ -1,6 +1,5 @@
 const fs = require('fs').promises;
 const { exec } = require("node:child_process");
-//const http = require('http');
 const YAML = require('yaml');
 
 const pathPrefix = "./mozilla-central/";
@@ -8,21 +7,13 @@ const eventsPath = pathPrefix + "toolkit/components/telemetry/Events.yaml";
 const histogramPath = pathPrefix + "toolkit/components/telemetry/Histograms.json";
 const scalarsPath = pathPrefix + "toolkit/components/telemetry/Scalars.yaml";
 
+const dataFile = "./data.json";
+
 const telemetryFiles = [
   "toolkit/components/telemetry/Events.yaml",
   "toolkit/components/telemetry/Histograms.json",
   "toolkit/components/telemetry/Scalars.yaml",
 ];
-
-/*
-For every revision:
- - List mirrors
- - list legacy events without mirrors
- - list legacy histograms without mirrors
- - list legacy scalars without mirrors
- - list metrics.yaml files
- - list Glean metrics
-*/
 
 const firstGleanNightly = "20201005215809";
 
@@ -32,6 +23,29 @@ function execCmd(cmd, silent = false) {
   }
   let options = {maxBuffer: 1024 * 1024 * 50,
                  cwd: pathPrefix};
+  return new Promise((resolve, reject) => {
+    exec(cmd, options,
+         (error, stdout, stderr) => {
+           if (stderr) {
+             console.log(`stderr: ${stderr}`);
+             if (!stdout) {
+               reject(stderr);
+               return;
+             }
+           }
+           if (error) {
+             reject(error);
+             return;
+           }
+           resolve(stdout);
+         })
+  });
+}
+
+function git(cmd) {
+  cmd = "git " + cmd;
+  console.log(cmd);
+  let options = {maxBuffer: 1024 * 1024 * 50};
   return new Promise((resolve, reject) => {
     exec(cmd, options,
          (error, stdout, stderr) => {
@@ -117,18 +131,6 @@ async function listMirrors() {
     let name = text.replace(/^.*telemetry_mirror: /, "");
     cache.mirrors.set(name, m);
   });
-}
-
-async function readReleases() {
-  const text = await fs.readFile("./releases.cache", {
-    encoding: "utf-8",
-  });
-  let releases = text.split("\n").filter(l => l).map(r => {
-    [hash, buildid] = r.split(" ");
-    return ({hash, buildid});
-  });
-
-  return releases.filter(r => r.buildid >= firstGleanNightly).reverse();
 }
 
 async function readEvents() {
@@ -241,22 +243,74 @@ async function processRelease() {
   });
 }
 
-async function processReleases() {
-  let releases = await readReleases();
+async function checkForUpdates() {
+  let cacheJson = "";
+  try {
+    cacheJson = await fs.readFile(dataFile, { encoding: "utf-8" });
+  } catch(e) {
+    console.log(e);
+  }
+  let knownReleases = new Set(
+    cacheJson.split("\n")
+      .filter(line => !!line)
+      .map(line => JSON.parse(line).buildid)
+  );
 
-  let prevHash;
-  for (let {hash, buildid} of releases) {
-    await execCmd(`hg update -r ${hash}`, true);
-    
-    let data = await processRelease();
-    let log = "";
-    if (prevHash) {
-      log = await execCmd(`hg log -r ${prevHash}:${hash} --template '{author|user}: {desc|strip|firstline}\n' ${telemetryFiles.join(" ")} toolkit/components/glean/metrics_index.py ${cache.metricsFiles.join(" ")}`, true);
-      log = log.trim();
+  let allReleases = [];
+  let response = await fetch("https://hg.mozilla.org/mozilla-central/firefoxreleases");
+  let body = await response.text();
+  let releases = body.split("\n").filter(l => l.includes('<tr id="') && l.includes("win64") && l.includes("nightlywin64202"));
+  for (let release of releases) {
+    let match = release.match(/"([a-z0-9]+)nightlywin64(202[0-9]+)"/);
+    if (!match) {
+      console.log("unexpected line:", release);
+      continue;
     }
-    console.log(JSON.stringify({buildid, data, log}));
-    
+    let [, hash, buildid] = match;
+    if (buildid < firstGleanNightly) {
+      continue;
+    }
+    allReleases.push({hash, buildid});
+  }
+  allReleases.reverse();
+
+  let newReleases = [];
+  let prevHash;
+  for (let {hash, buildid} of allReleases) {
+    if (!knownReleases.has(buildid)) {
+      newReleases.push({hash, buildid, prevHash});
+    }
     prevHash = hash;
   }
+
+  if (newReleases.length) {
+    await execCmd(`hg pull`);
+
+    for (let {hash, buildid, prevHash} of newReleases) {
+      await execCmd(`hg update -r ${hash}`);
+
+      let data = await processRelease();
+
+      let log = "";
+      if (prevHash) {
+        log = await execCmd(`hg log -r ${prevHash}:${hash} --template '{author|user}: {desc|strip|firstline}\n' ${telemetryFiles.join(" ")} toolkit/components/glean/metrics_index.py ${cache.metricsFiles.join(" ")}`, true);
+        log = log.trim();
+      }
+
+      let newLine = JSON.stringify({buildid, data, log});
+      console.log(newLine);
+      cacheJson += newLine + "\n";
+    }
+
+    await fs.writeFile(dataFile, cacheJson);
+
+    let buildids = newReleases.map(({buildid}) => buildid)
+    let string = buildids.join(", ").replace(/, ([^,]*)$/, " and $1");
+    await git(`commit -m 'Automated update for build id${buildids.length > 1 ? "s" : ""} ${string}.' ${dataFile}`);
+    await git("push");
+  }
 }
-processReleases();
+
+// Update once now, and then every 6 hours
+checkForUpdates();
+setInterval(checkForUpdates, 6 * 3600 * 1000);
