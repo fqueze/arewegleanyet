@@ -5,44 +5,39 @@
     <title>Are we Glean yet?</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
+    <style>
+      h1 {
+        text-align: center;
+      }
+      div {
+        width: 80%;
+        margin: auto;
+      }
+    </style>
+  </head>
   <body>
     <h1>Are we Glean yet? <span id="percent"></span></h1>
-    
+
     <h2 id="percentGlean">% Glean</h2>
-    <div style="width: 80%; margin: auto;">
-        <canvas id="percentGleanChart"></canvas>
-    </div>
+    <div><canvas id="percentGleanChart"></canvas></div>
 
     <h2 id="evolution">Glean and Legacy telemetry probe count</h2>
-    <div style="width: 80%; margin: auto;">
-        <canvas id="evolutionChart"></canvas>
-    </div>
+    <div><canvas id="evolutionChart"></canvas></div>
 
     <h2 id="events">Legacy events burndown</h2>
-    <div style="width: 80%; margin: auto;">
-        <canvas id="eventsChart"></canvas>
-    </div>
+    <div><canvas id="eventsChart"></canvas></div>
 
     <h2 id="scalars">Legacy scalars burndown</h2>
-    <div style="width: 80%; margin: auto;">
-        <canvas id="scalarsChart"></canvas>
-    </div>
+    <div><canvas id="scalarsChart"></canvas></div>
 
     <h2 id="histograms">Legacy histograms burndown</h2>
-    <div style="width: 80%; margin: auto;">
-        <canvas id="histogramsChart"></canvas>
-    </div>
-    
+    <div><canvas id="histogramsChart"></canvas></div>
+
     <script>
       const CHART_COLORS = {
-        red: 'rgb(255, 99, 132)',
-        orange: 'rgb(255, 159, 64)',
-        yellow: 'rgb(255, 205, 86)',
-        green: 'rgb(75, 192, 192)',
-        blue: 'rgb(54, 162, 235)',
-        purple: 'rgb(153, 102, 255)',
-        grey: 'rgb(201, 203, 207)'
+        red: "rgb(255, 99, 132)",
+        green: "rgb(75, 192, 192)",
+        blue: "rgb(54, 162, 235)",
       };
       
       // Data
@@ -104,102 +99,49 @@
           return logs[tooltipItems[0].dataIndex];
         };
 
-        let getCtx = id => document.getElementById(id).getContext('2d');
+        function displayChart(id, datasets) {
+          let y = id.startsWith("percent") ? { stacked: true, beginAtZero: true, max: 100 }
+              : { beginAtZero: true, title: { display: true, text: "Count" }};
+          new Chart(document.getElementById(id).getContext("2d"), {
+            type: "line",
+            data: {
+              labels: buildids, // Build IDs are used as labels (time)
+              datasets
+            },
+            options: {
+              animation: false,
+              plugins: { tooltip: { callbacks: { footer: footer }}},
+              scales: {
+                x: { title: { display: true, text: "Nightly build ID (Time)" }},
+                y
+              }
+            }
+          });
+        }
+
         let dataset = (data, label, color) => ({label, data, borderColor: CHART_COLORS[color]});
-        new Chart(getCtx("percentGleanChart"), {
-          type: 'line',
-          data: {
-            labels: buildids,  // Build IDs are used as labels (time)
-            datasets: [
-              dataset(percentGleanOnly, "Glean only", "green"),
-              dataset(percentGleanWithMirror, "Glean mirroring to legacy Telemetry", "blue"),
-              dataset(percentLegacyOnly, "Legacy Telemetry", "red"),
-            ]
-          },
-          options: {
-            animation: false,
-            plugins: { tooltip: { callbacks: { footer: footer }}},
-            scales: {
-              x: { title: { display: true, text: 'Nightly build ID (Time)' }},
-              y: { stacked: true, beginAtZero: true, max: 100 }
-            }
-          }
-        });
-
-        new Chart(getCtx("evolutionChart"), {
-          type: 'line',
-          data: {
-            labels: buildids,  // Build IDs are used as labels (time)
-            datasets: [
-              dataset(gleanOnly, "Glean only", "green"),
-              dataset(gleanWithMirror, "Glean mirroring to legacy Telemetry", "blue"),
-              dataset(legacyOnly, "Legacy Telemetry", "red"),
-            ]
-          },
-          options: {
-            animation: false,
-            plugins: { tooltip: { callbacks: { footer: footer }}},
-            scales: {
-              x: { title: { display: true, text: 'Nightly build ID (Time)' }},
-              y: { beginAtZero: true, title: { display: true, text: 'Count' }}
-            }
-          }
-        });
-
-        new Chart(getCtx("eventsChart"), {
-          type: 'line',
-          data: {
-            labels: buildids,  // Build IDs are used as labels (time)
-            datasets: [
-              dataset(eventsWithMirror, "Events mirrored from Glean", "blue"),
-              dataset(eventsWithoutMirror, "Legacy events not mirrored", "red"),
-            ]
-          },
-          options: {
-            animation: false,
-            plugins: { tooltip: { callbacks: { footer: footer }}},
-            scales: {
-              x: { title: { display: true, text: 'Nightly build ID (Time)' }},
-              y: { beginAtZero: true, title: { display: true, text: 'Count' }}
-            }
-          }
-        });
-        new Chart(getCtx("scalarsChart"), {
-          type: 'line',
-          data: {
-            labels: buildids,  // Build IDs are used as labels (time)
-            datasets: [
-              dataset(scalarsWithMirror, "Scalars mirrored from Glean", "blue"),
-              dataset(scalarsWithoutMirror, "Legacy scalars not mirrored", "red"),
-            ]
-          },
-          options: {
-            animation: false,
-            plugins: { tooltip: { callbacks: { footer: footer }}},
-            scales: {
-              x: { title: { display: true, text: 'Nightly build ID (Time)' }},
-              y: { beginAtZero: true, title: { display: true, text: 'Count' }}
-            }
-          }
-        });
-        new Chart(getCtx("histogramsChart"), {
-          type: 'line',
-          data: {
-            labels: buildids,  // Build IDs are used as labels (time)
-            datasets: [
-              dataset(histogramsWithMirror, "Histograms mirrored from Glean", "blue"),
-              dataset(histogramsWithoutMirror, "Legacy histograms not mirrored", "red"),
-            ]
-          },
-          options: {
-            animation: false,
-            plugins: { tooltip: { callbacks: { footer: footer }}},
-            scales: {
-              x: { title: { display: true, text: 'Nightly build ID (Time)' }},
-              y: { beginAtZero: true, title: { display: true, text: 'Count' }}
-            }
-          }
-        });
+        displayChart("percentGleanChart", [
+          dataset(percentGleanOnly, "Glean only", "green"),
+          dataset(percentGleanWithMirror, "Glean mirroring to legacy Telemetry", "blue"),
+          dataset(percentLegacyOnly, "Legacy Telemetry", "red"),
+        ]);
+        displayChart("evolutionChart", [
+          dataset(gleanOnly, "Glean only", "green"),
+          dataset(gleanWithMirror, "Glean mirroring to legacy Telemetry", "blue"),
+          dataset(legacyOnly, "Legacy Telemetry", "red"),
+        ]);
+        displayChart("eventsChart", [
+          dataset(eventsWithMirror, "Events mirrored from Glean", "blue"),
+          dataset(eventsWithoutMirror, "Legacy events not mirrored", "red"),
+        ]);
+        displayChart("scalarsChart", [
+          dataset(scalarsWithMirror, "Scalars mirrored from Glean", "blue"),
+          dataset(scalarsWithoutMirror, "Legacy scalars not mirrored", "red"),
+        ]);
+        displayChart("histogramsChart", [
+          dataset(histogramsWithMirror, "Histograms mirrored from Glean", "blue"),
+          dataset(histogramsWithoutMirror, "Legacy histograms not mirrored", "red"),
+        ]);
       });
     </script>
 
