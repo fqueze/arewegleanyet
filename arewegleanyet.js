@@ -50,17 +50,13 @@ function git(cmd) {
     exec(cmd, options,
          (error, stdout, stderr) => {
            if (stderr) {
-             console.log(`stderr: ${stderr}`);
-             if (!stdout) {
-               reject(stderr);
-               return;
-             }
+             console.log(stderr);
            }
            if (error) {
              reject(error);
-             return;
+           } else {
+             resolve(stdout);
            }
-           resolve(stdout);
          })
   });
 }
@@ -283,32 +279,35 @@ async function checkForUpdates() {
     prevHash = hash;
   }
 
-  if (newReleases.length) {
-    await execCmd(`hg pull`);
+  if (!newReleases.length) {
+    console.log("No new Nightly release.");
+    return;
+  }
 
-    for (let {hash, buildid, prevHash} of newReleases) {
-      await execCmd(`hg update -r ${hash}`);
+  await execCmd(`hg pull`);
 
-      let data = await processRelease();
+  for (let {hash, buildid, prevHash} of newReleases) {
+    await execCmd(`hg update -r ${hash}`);
 
-      let log = "";
-      if (prevHash) {
-        log = await execCmd(`hg log -r ${prevHash}:${hash} --template '{author|user}: {desc|strip|firstline}\n' ${telemetryFiles.join(" ")} toolkit/components/glean/metrics_index.py ${cache.metricsFiles.join(" ")}`, true);
-        log = log.trim();
-      }
+    let data = await processRelease();
 
-      let newLine = JSON.stringify({buildid, data, log});
-      console.log(newLine);
-      cacheJson += newLine + "\n";
+    let log = "";
+    if (prevHash) {
+      log = await execCmd(`hg log -r ${prevHash}:${hash} --template '{author|user}: {desc|strip|firstline}\n' ${telemetryFiles.join(" ")} toolkit/components/glean/metrics_index.py ${cache.metricsFiles.join(" ")}`, true);
+      log = log.trim();
     }
 
-    await fs.writeFile(dataFile, cacheJson);
-
-    let buildids = newReleases.map(({buildid}) => buildid)
-    let string = buildids.join(", ").replace(/, ([^,]*)$/, " and $1");
-    await git(`commit -m 'Automated update for build id${buildids.length > 1 ? "s" : ""} ${string}.' ${dataFile}`);
-    await git("push");
+    let newLine = JSON.stringify({buildid, data, log});
+    console.log(newLine);
+    cacheJson += newLine + "\n";
   }
+
+  await fs.writeFile(dataFile, cacheJson);
+
+  let buildids = newReleases.map(({buildid}) => buildid)
+  let string = buildids.join(", ").replace(/, ([^,]*)$/, " and $1");
+  await git(`commit -m 'Automated update for build id${buildids.length > 1 ? "s" : ""} ${string}.' ${dataFile}`);
+  await git("push");
 }
 
 // Update once now, and then every 6 hours
