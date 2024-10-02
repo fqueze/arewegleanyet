@@ -87,32 +87,6 @@ async function listMetricsYaml() {
   cache.metricsYaml = await Promise.all(metricsYaml.map(parseMetricsYaml));
 }
 
-function execRg(probeName) {
-  return new Promise((resolve, reject) => {
-    exec(`rg ${probeName} -g '!obj-*' -g '!*~' -g '!Events.yaml' -g '!.hg*' --json ${pathPrefix}`, {maxBuffer: 1024 * 1024 * 50},
-         (error, stdout, stderr) => {
-           if (stderr) {
-             console.log(`stderr: ${stderr}`);
-             reject(stderr);
-             return;
-           }
-           if (error) {
-             // Assume rg returning an error means 'no match'.
-             resolve([]);
-             return;
-           }
-           let lines = stdout.split("\n").filter(l => l).map(JSON.parse);
-           let matches = lines.filter(l => l.type == "match").map(l => l.data).map(m => {
-             return { path: m.path.text.replace(pathPrefix, ""),
-                      line: m.line_number,
-                      text: m.lines.text.slice(0,250).replace("\n", "") };
-           });
-           resolve(matches);
-         })
-  });
-}
-
-var gMirrors = new Map();
 async function listMirrors() {
   let mirrors = await new Promise((resolve, reject) => {
     exec(`rg telemetry_mirror: -g '!obj-*' -g '!*~' -g 'metrics.yaml' -g '!.hg*' --json ${pathPrefix}`, {maxBuffer: 1024 * 1024 * 50},
@@ -137,15 +111,11 @@ async function listMirrors() {
          })
   });
 
-  cache.mirrors = mirrors;
-  initMirrors();
-}
-
-function initMirrors() {
-  cache.mirrors.forEach(m => {
+  cache.mirrors = new Map();
+  mirrors.forEach(m => {
     let {path, line, text} = m;
     let name = text.replace(/^.*telemetry_mirror: /, "");
-    gMirrors.set(name, m);
+    cache.mirrors.set(name, m);
   });
 }
 
@@ -182,12 +152,8 @@ async function readScalars() {
   cache.scalars = YAML.parse(scalarsText, null, {uniqueKeys: false});
 }
 
-
-function ucfirst(s) {
-  return s[0].toUpperCase() + s.slice(1).toLowerCase();
-}
-
 function eventHasMirror(key, name) {
+  let ucfirst = s => s[0].toUpperCase() + s.slice(1).toLowerCase();
   let hasMirror = false;
   let probe = cache.events[key][name];
   for (let obj of probe.objects) {
@@ -195,7 +161,7 @@ function eventHasMirror(key, name) {
       let CppName = [key.split(".").map(ucfirst).join(""),
                      method.split("_").map(ucfirst).join(""),
                      obj.split("_").map(ucfirst).join("")].join("_");
-      let m = gMirrors.get(CppName);
+      let m = cache.mirrors.get(CppName);
       if (m) {
         return true;
       }
@@ -203,7 +169,6 @@ function eventHasMirror(key, name) {
   }
   return false;
 }
-
 
 let cache;
 async function processRelease() {
@@ -227,7 +192,7 @@ async function processRelease() {
     }
 
     let histograms = Object.keys(cache.histograms).filter(h => !h.startsWith("TELEMETRY_TEST_"));
-    let histogramsWithoutMirrors = histograms.filter(h => !gMirrors.get(h)).length;
+    let histogramsWithoutMirrors = histograms.filter(h => !cache.mirrors.get(h)).length;
     let scalarCount = 0;
     let scalarsWithoutMirror = 0;
     for (let key in cache.scalars) {
@@ -237,7 +202,7 @@ async function processRelease() {
       for (let name in cache.scalars[key]) {
         ++scalarCount;
         let mirrorName = `${key}_${name}`.toUpperCase();
-        if (!gMirrors.get(mirrorName)) {
+        if (!cache.mirrors.get(mirrorName)) {
           ++scalarsWithoutMirror;
         }
       }
