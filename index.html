@@ -99,7 +99,7 @@
           return logs[tooltipItems[0].dataIndex];
         };
 
-        function displayChart(id, datasets) {
+        function displayChart(id, datasets, label) {
           let y = id.startsWith("percent") ? { stacked: true, beginAtZero: true, max: 100 }
               : { beginAtZero: true, title: { display: true, text: "Count" }};
           new Chart(document.getElementById(id).getContext("2d"), {
@@ -117,6 +117,18 @@
               }
             }
           });
+          if (label) {
+            let withMirror = datasets[0].data.at(-1);
+            let withoutMirror = datasets[1].data.at(-1);
+            let percent = withMirror / (withMirror + withoutMirror) * 100;
+            let text = "";
+            if (percent < 100) {
+              text = `: ${percent.toFixed(1)}% mirrored`;
+            } else {
+              text = ": 100% mirrored 🎉";
+            }
+            document.getElementById(label).textContent += text;
+          }
         }
 
         let dataset = (data, label, color) => ({label, data, borderColor: CHART_COLORS[color]});
@@ -133,15 +145,15 @@
         displayChart("eventsChart", [
           dataset(eventsWithMirror, "Events mirrored from Glean", "blue"),
           dataset(eventsWithoutMirror, "Legacy events not mirrored", "red"),
-        ]);
+        ], "events");
         displayChart("scalarsChart", [
           dataset(scalarsWithMirror, "Scalars mirrored from Glean", "blue"),
           dataset(scalarsWithoutMirror, "Legacy scalars not mirrored", "red"),
-        ]);
+        ], "scalars");
         displayChart("histogramsChart", [
           dataset(histogramsWithMirror, "Histograms mirrored from Glean", "blue"),
           dataset(histogramsWithoutMirror, "Legacy histograms not mirrored", "red"),
-        ]);
+        ], "histograms");
       });
     </script>
 
