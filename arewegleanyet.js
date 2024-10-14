@@ -95,38 +95,20 @@ async function listMetricsYaml() {
 
   cache.metricsFiles = metricsYaml;
   cache.metricsYaml = await Promise.all(metricsYaml.map(parseMetricsYaml));
-}
 
-async function listMirrors() {
-  let mirrors = await new Promise((resolve, reject) => {
-    exec(`rg telemetry_mirror: -g '!obj-*' -g '!*~' -g 'metrics.yaml' -g '!.hg*' --json ${pathPrefix}`, {maxBuffer: 1024 * 1024 * 50},
-         (error, stdout, stderr) => {
-           if (stderr) {
-             console.log(`stderr: ${stderr}`);
-             reject(stderr);
-             return;
-           }
-           if (error) {
-             // Assume rg returning an error means 'no match'.
-             resolve([]);
-             return;
-           }
-           let lines = stdout.split("\n").filter(l => l).map(JSON.parse);
-           let matches = lines.filter(l => l.type == "match").map(l => l.data).map(m => {
-             return { path: m.path.text.replace(pathPrefix, ""),
-                      line: m.line_number,
-                      text: m.lines.text.slice(0,250).replace("\n", "") };
-           });
-           resolve(matches);
-         })
-  });
-
-  cache.mirrors = new Map();
-  mirrors.forEach(m => {
-    let {path, line, text} = m;
-    let name = text.replace(/^.*telemetry_mirror: /, "");
-    cache.mirrors.set(name, m);
-  });
+  cache.mirrors = new Set()
+  for (let metricsYaml of cache.metricsYaml) {
+    for (let key in metricsYaml) {
+      if (key.startsWith('$')) {
+        continue;
+      }
+      for (let name in metricsYaml[key]) {
+        if (metricsYaml[key][name].telemetry_mirror) {
+          cache.mirrors.add(metricsYaml[key][name].telemetry_mirror);
+        }
+      }
+    }
+  }
 }
 
 async function readEvents() {
@@ -159,8 +141,7 @@ function eventHasMirror(key, name) {
       let CppName = [key.split(".").map(ucfirst).join(""),
                      method.split("_").map(ucfirst).join(""),
                      obj.split("_").map(ucfirst).join("")].join("_");
-      let m = cache.mirrors.get(CppName);
-      if (m) {
+      if (cache.mirrors.has(CppName)) {
         return true;
       }
     }
@@ -172,7 +153,7 @@ let cache;
 async function processRelease() {
   cache = {};
 
-  return Promise.all([listMirrors(), readEvents(), readHistograms(), readScalars(), listMetricsYaml()]).then(() => {
+  return Promise.all([readEvents(), readHistograms(), readScalars(), listMetricsYaml()]).then(() => {
     let eventCount = 0;
     let eventsWithoutMirror = 0;
     for (let key in cache.events) {
@@ -190,7 +171,8 @@ async function processRelease() {
     }
 
     let histograms = Object.keys(cache.histograms).filter(h => !h.startsWith("TELEMETRY_TEST_"));
-    let histogramsWithoutMirrors = histograms.filter(h => !cache.mirrors.get(h)).length;
+    let histogramsWithoutMirrors = histograms.filter(h => !cache.mirrors.has(h)).length;
+
     let scalarCount = 0;
     let scalarsWithoutMirror = 0;
     for (let key in cache.scalars) {
@@ -200,7 +182,7 @@ async function processRelease() {
       for (let name in cache.scalars[key]) {
         ++scalarCount;
         let mirrorName = `${key}_${name}`.toUpperCase();
-        if (!cache.mirrors.get(mirrorName)) {
+        if (!cache.mirrors.has(mirrorName)) {
           ++scalarsWithoutMirror;
         }
       }
