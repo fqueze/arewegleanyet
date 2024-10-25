@@ -17,6 +17,8 @@ const telemetryFiles = [
 
 const firstGleanNightly = "20201005215809";
 
+let DEBUG = false;
+
 function execCmd(cmd, silent = false) {
   if (!silent) {
     console.log(cmd);
@@ -45,6 +47,9 @@ function execCmd(cmd, silent = false) {
 function git(cmd) {
   cmd = "git " + cmd;
   console.log(cmd);
+  if (DEBUG) {
+    return;
+  }
   let options = {maxBuffer: 1024 * 1024 * 50};
   return new Promise((resolve, reject) => {
     exec(cmd, options,
@@ -181,7 +186,7 @@ async function processRelease() {
       }
       for (let name in cache.scalars[key]) {
         ++scalarCount;
-        let mirrorName = `${key}_${name}`.toUpperCase();
+        let mirrorName = `${key}_${name}`.toUpperCase().replace(/\./g, "_");
         if (!cache.mirrors.has(mirrorName)) {
           ++scalarsWithoutMirror;
         }
