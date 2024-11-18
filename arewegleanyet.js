@@ -181,10 +181,20 @@ async function processRelease() {
     let scalarCount = 0;
     let scalarsWithoutMirror = 0;
     for (let key in cache.scalars) {
-      if (key == "telemetry.test") {
+      if (key == "telemetry.test" || key == "telemetry.discarded") {
         continue;
       }
       for (let name in cache.scalars[key]) {
+        if (key == "telemetry" && [
+          "accumulate_unknown_histogram_keys",
+          "accumulate_clamped_values",
+          "event_counts",
+          "keyed_scalars_exceed_limit",
+          "keyed_scalars_unknown_keys",
+        ].includes(name)) {
+          continue;
+        }
+
         ++scalarCount;
         let mirrorName = `${key}_${name}`.toUpperCase().replace(/\./g, "_");
         if (!cache.mirrors.has(mirrorName)) {
