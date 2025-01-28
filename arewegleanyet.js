@@ -6,6 +6,8 @@ const pathPrefix = "./mozilla-central/";
 const eventsPath = pathPrefix + "toolkit/components/telemetry/Events.yaml";
 const histogramPath = pathPrefix + "toolkit/components/telemetry/Histograms.json";
 const scalarsPath = pathPrefix + "toolkit/components/telemetry/Scalars.yaml";
+const environmentPath = pathPrefix + "toolkit/components/telemetry/app/TelemetryEnvironment.sys.mjs";
+const oldEnvironmentPath = pathPrefix + "toolkit/components/telemetry/app/TelemetryEnvironment.jsm";
 
 const dataFile = "./data.json";
 
@@ -13,6 +15,7 @@ const telemetryFiles = [
   "toolkit/components/telemetry/Events.yaml",
   "toolkit/components/telemetry/Histograms.json",
   "toolkit/components/telemetry/Scalars.yaml",
+  "toolkit/components/telemetry/app/TelemetryEnvironment.sys.mjs",
 ];
 
 const firstGleanNightly = "20201005215809";
@@ -137,6 +140,16 @@ async function readScalars() {
   cache.scalars = YAML.parse(scalarsText, null, {uniqueKeys: false});
 }
 
+async function readEnvironment() {
+  cache.environment = await fs.readFile(environmentPath, {
+    encoding: "utf-8",
+  }).catch(() => {
+    return fs.readFile(oldEnvironmentPath, {
+      encoding: "utf-8",
+    });
+  });
+}
+
 function eventHasMirror(key, name) {
   let ucfirst = s => s[0].toUpperCase() + s.slice(1).toLowerCase();
   let hasMirror = false;
@@ -158,7 +171,7 @@ let cache;
 async function processRelease() {
   cache = {};
 
-  return Promise.all([readEvents(), readHistograms(), readScalars(), listMetricsYaml()]).then(() => {
+  return Promise.all([readEvents(), readHistograms(), readScalars(), listMetricsYaml(), readEnvironment()]).then(() => {
     let eventCount = 0;
     let eventsWithoutMirror = 0;
     for (let key in cache.events) {
@@ -221,6 +234,24 @@ async function processRelease() {
       }
     }
 
+    // The default amount of environment probes,
+    // determined on 2025-01-28 to be 127.
+    let environmentProbes = 127;
+    // Default to assuming builds without annotation
+    // are from before migration and had no Glean.
+    let environmentMetrics = 0;
+    // The Legacy Telemetry Environment is annoying,
+    // so we list the counts in comments.
+    let legacyCount = cache.environment.match(/Legacy Count: ([0-9]+)/);
+    if (legacyCount) {
+      [, environmentProbes] = legacyCount;
+    }
+    let gleanCount = cache.environment.match(/Glean Count: ([0-9]+)/);
+    if (gleanCount) {
+      [, environmentMetrics] = gleanCount;
+    }
+    let legacyOnlyEnvironmentProbes = environmentProbes - environmentMetrics;
+
     let data = {
       events: eventCount,
       legacyOnlyEvents: eventsWithoutMirror,
@@ -230,7 +261,9 @@ async function processRelease() {
       legacyOnlyScalars: scalarsWithoutMirror,
       metrics,
       metricsWithoutUseCounters,
-      metricsWithTelemetryMirror
+      metricsWithTelemetryMirror,
+      legacyOnlyEnvironmentProbes,
+      environmentProbes,
     };
     return data;
   });
