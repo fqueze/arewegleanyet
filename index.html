@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+b<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
@@ -83,8 +83,10 @@
           buildids.push(buildid.slice(0, 10));
           let legOnly = data.legacyOnlyEvents + data.legacyOnlyHistograms + data.legacyOnlyScalars + data.legacyOnlyEnvironmentProbes;
           legacyOnly.push(legOnly);
-          gleanOnly.push(data.metricsWithoutUseCounters - data.metricsWithTelemetryMirror - data.environmentMetrics);
-          gleanWithMirror.push(data.metricsWithTelemetryMirror + data.environmentMetrics);
+
+          let environmentMetrics = data.environmentProbes - data.legacyOnlyEnvironmentProbes
+          gleanOnly.push(data.metricsWithoutUseCounters - data.metricsWithTelemetryMirror - environmentMetrics);
+          gleanWithMirror.push(data.metricsWithTelemetryMirror + environmentMetrics);
           logs.push(log);
           eventsWithoutMirror.push(data.legacyOnlyEvents);
           eventsWithMirror.push(data.events - data.legacyOnlyEvents);
