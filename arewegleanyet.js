@@ -112,7 +112,11 @@ async function listMetricsYaml() {
       }
       for (let name in metricsYaml[key]) {
         if (metricsYaml[key][name].telemetry_mirror) {
-          cache.mirrors.add(metricsYaml[key][name].telemetry_mirror);
+          let mirror = metricsYaml[key][name].telemetry_mirror;
+          if (mirror.startsWith("h#")) {
+            mirror = mirror.slice("h#".length);
+          }
+          cache.mirrors.add(mirror);
         }
       }
     }
