@@ -9,6 +9,12 @@
       h1 {
         text-align: center;
       }
+      .subtitle {
+        text-align: center;
+      }
+      #latest-build {
+        font-family: monospace;
+      }
       div {
         margin: auto;
       }
@@ -21,6 +27,7 @@
   </head>
   <body>
     <h1>Are we Glean yet? <span id="percent"></span></h1>
+    <p class="subtitle">Latest build: <span id="latest-build"></span></h1>
 
     <h2 id="percentGlean">% Glean</h2>
     <div><canvas id="percentGleanChart"></canvas></div>
@@ -107,6 +114,7 @@
         let percentText = percent < 100 ? `No, ${percent.toFixed(1)}% Glean` : "Yes!";
         document.getElementById("percent").textContent = percentText;
         document.title += " " + percentText;
+        document.getElementById("latest-build").textContent = Math.max(...buildids);
 
         // Create the chart
         const footer = (tooltipItems) => {
