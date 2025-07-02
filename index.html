@@ -5,6 +5,7 @@
     <title>Are we Glean yet?</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
       h1 {
         text-align: center;
@@ -104,9 +105,32 @@
         }
 
         let percent = percentGleanOnly.at(-1) + percentGleanWithMirror.at(-1);
-        let percentText = percent < 100 ? `No, ${percent.toFixed(1)}% Glean` : "Yes!";
+        let percentText = percent < 100 ? `No, ${percent.toFixed(1)}% Glean` : "Yes! 🎉";
         document.getElementById("percent").textContent = percentText;
         document.title += " " + percentText;
+        if (percent == 100) {
+          const end = Date.now() + 5 * 1000;
+          (function frame() {
+            confetti({
+              particleCount: 5,
+              angle: 60,
+              spread: 55,
+              origin: { x: 0 },
+              colors: ['#FF4F00', '#FF9800', '#FFC107', '#00BCD4', '#4CAF50']
+            });
+            confetti({
+              particleCount: 5,
+              angle: 120,
+              spread: 55,
+              origin: { x: 1 },
+              colors: ['#FF4F00', '#FF9800', '#FFC107', '#00BCD4', '#4CAF50']
+            });
+
+            if (Date.now() < end) {
+              requestAnimationFrame(frame);
+            }
+          })();
+        }
 
         // Create the chart
         const footer = (tooltipItems) => {
