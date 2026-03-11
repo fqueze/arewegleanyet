@@ -273,7 +273,7 @@ async function processRelease() {
   });
 }
 
-async function checkForUpdates() {
+async function checkForUpdatesInternal() {
   let cacheJson = "";
   try {
     cacheJson = await fs.readFile(dataFile, { encoding: "utf-8" });
@@ -342,6 +342,14 @@ async function checkForUpdates() {
   let string = buildids.join(", ").replace(/, ([^,]*)$/, " and $1");
   await git(`commit -m 'Automated update for build id${buildids.length > 1 ? "s" : ""} ${string}.' ${dataFile}`);
   await git("push");
+}
+
+async function checkForUpdates() {
+  try {
+    await checkForUpdatesInternal();
+  } catch(e) {
+    console.error("checkForUpdates failed, will retry in 6 hours:", e.message);
+  }
 }
 
 // Update once now, and then every 6 hours
