@@ -22,6 +22,7 @@
   </head>
   <body>
     <h1>Are we Glean yet? <span id="percent"></span></h1>
+    <h1>Are we legacy Telemetry free? <span id="percentLegacyFree"></span></h1>
 
     <h2 id="percentGlean">% Glean</h2>
     <div><canvas id="percentGleanChart"></canvas></div>
@@ -59,6 +60,7 @@
 
       // Evolution chart
       let legacyOnly = [];
+      let legacyReachable = [];
       let gleanWithMirror = [];
       let gleanOnly = [];
 
@@ -86,6 +88,8 @@
           legacyOnly.push(legOnly);
 
           let environmentMetrics = data.environmentProbes - data.legacyOnlyEnvironmentProbes
+          // Probes still reaching legacy Telemetry: legacy only + mirrored from Glean.
+          legacyReachable.push(legOnly + data.metricsWithTelemetryMirror + environmentMetrics);
           gleanOnly.push(data.metricsWithoutUseCounters - data.metricsWithTelemetryMirror - environmentMetrics);
           gleanWithMirror.push(data.metricsWithTelemetryMirror + environmentMetrics);
           logs.push(log);
@@ -108,23 +112,48 @@
         let percentText = percent < 100 ? `No, ${percent.toFixed(1)}% Glean` : "Yes! 🎉";
         document.getElementById("percent").textContent = percentText;
         document.title += " " + percentText;
+
+        // Percentage of the peak number of probes reaching legacy Telemetry
+        // that have since been removed.
+        let maxLegacyReachable = legacyReachable.reduce((a, b) => Math.max(a, b));
+        let percentLegacyFree =
+          (1 - legacyReachable.at(-1) / maxLegacyReachable) * 100;
+        document.getElementById("percentLegacyFree").textContent =
+          percentLegacyFree < 100 ? `No, ${percentLegacyFree.toFixed(1)}%`
+                                  : "Yes! 🎉";
+        // Being legacy Telemetry free implies being 100% Glean, as both
+        // require the legacy only probe count to have reached 0. So the
+        // final milestone always gets the doubled-up confetti.
+        let legacyFree = percentLegacyFree == 100;
         if (percent == 100) {
-          const end = Date.now() + 5 * 1000;
+          const colors = ['#FF4F00', '#FF9800', '#FFC107', '#00BCD4', '#4CAF50'];
+          const particleCount = legacyFree ? 10 : 5;
+          const end = Date.now() + (legacyFree ? 10 : 5) * 1000;
           (function frame() {
             confetti({
-              particleCount: 5,
+              particleCount,
               angle: 60,
               spread: 55,
               origin: { x: 0 },
-              colors: ['#FF4F00', '#FF9800', '#FFC107', '#00BCD4', '#4CAF50']
+              colors
             });
             confetti({
-              particleCount: 5,
+              particleCount,
               angle: 120,
               spread: 55,
               origin: { x: 1 },
-              colors: ['#FF4F00', '#FF9800', '#FFC107', '#00BCD4', '#4CAF50']
+              colors
             });
+            if (legacyFree) {
+              // Legacy Telemetry is gone: add fireworks in the middle.
+              confetti({
+                particleCount,
+                spread: 360,
+                startVelocity: 35,
+                origin: { x: 0.5, y: 0.4 },
+                colors
+              });
+            }
 
             if (Date.now() < end) {
               requestAnimationFrame(frame);
