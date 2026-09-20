@@ -75,7 +75,7 @@ async function parseMetricsYaml(path) {
   });
   let result;
   try {
-    result = YAML.parse(yamlText, null, {uniqueKeys: false});
+    result = YAML.parse(yamlText, null, {uniqueKeys: false, maxAliasCount: 1000});
   } catch(e) { console.log(path, e); }
   return result;
 }
@@ -127,7 +127,7 @@ async function readEvents() {
   const eventsText = await fs.readFile(eventsPath, {
     encoding: "utf-8",
   });
-  cache.events = YAML.parse(eventsText, null, {uniqueKeys: false});
+  cache.events = YAML.parse(eventsText, null, {uniqueKeys: false, maxAliasCount: 1000});
 }
 
 async function readHistograms() {
@@ -141,7 +141,7 @@ async function readScalars() {
   const scalarsText = await fs.readFile(scalarsPath, {
     encoding: "utf-8",
   });
-  cache.scalars = YAML.parse(scalarsText, null, {uniqueKeys: false});
+  cache.scalars = YAML.parse(scalarsText, null, {uniqueKeys: false, maxAliasCount: 1000});
 }
 
 async function readEnvironment() {
