@@ -254,7 +254,10 @@ async function processRelease() {
     if (gleanCount) {
       [, environmentMetrics] = gleanCount;
     }
-    let legacyOnlyEnvironmentProbes = environmentProbes - environmentMetrics;
+    // The two comments are occasionally out of sync when a patch updates only
+    // one of them; a negative count is never meaningful, so clamp to 0.
+    let legacyOnlyEnvironmentProbes =
+      Math.max(0, environmentProbes - environmentMetrics);
 
     let data = {
       events: eventCount,
